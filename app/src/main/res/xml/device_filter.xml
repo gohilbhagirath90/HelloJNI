@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- IDs must be in decimal! -->
+    <!--<usb-device class="8" protocol="80" subclass="6" />-->
+    <usb-device vendor-id="7615" product-id="256" />
+    <usb-device vendor-id="7615" product-id="257" />
+    <usb-device vendor-id="7615" product-id="258" />
+</resources>
