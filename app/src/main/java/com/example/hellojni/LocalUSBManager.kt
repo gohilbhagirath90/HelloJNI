@@ -12,13 +12,13 @@ import android.util.Log
 
 class LocalUSBManager(val mContext: Context) {
     private val TAG = "LocalUSBManager"
-    private val mUsbReceiver: BroadcastReceiver
+    private var mUsbReceiver: UsbProbeReceiver? = null
     var fd = 0
-    private val mUsbManager = mContext.getSystemService(Context.USB_SERVICE) as UsbManager
-    val PENDING_INTENT_FLAG_MUTABLE = 33554432
+    val mUsbManager = mContext.getSystemService(Context.USB_SERVICE) as UsbManager
+    private val PENDING_INTENT_FLAG_MUTABLE = 33554432
 
     private var mPermissionIntent : PendingIntent? = null
-    private var mUsbDevice: UsbDevice? = null
+    var mUsbDevice: UsbDevice? = null
 
     companion object{
         val ACTION_USB_PERMISSION = "com.example.hellojni.USB_PERMISSION"
@@ -30,65 +30,25 @@ class LocalUSBManager(val mContext: Context) {
 
     init {
         Log.d("USB", "init() called")
+        registerReceiver()
+    }
+
+    fun registerReceiver(){
         mPermissionIntent = PendingIntent.getBroadcast(
             mContext,
             0,
             Intent(ACTION_USB_PERMISSION),
             PENDING_INTENT_FLAG_MUTABLE
         )
-        mUsbReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                val action = intent.action
-                if (UsbManager.ACTION_USB_DEVICE_ATTACHED == action) {
-                    Log.d("USB", " action ACTION_USB_DEVICE_ATTACHED")
-                    val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
-                    if (mUsbManager.hasPermission(device)) {
-                        fd = device!!.deviceId
-                        Log.d("USB1", " device fd :$fd")
-                        Log.d("USB1", " device init :${HelloJni().init(fd)}")
-
-                    } else {
-                        //mUsbManager.requestPermission(device, mPermissionIntent)
-                    }
-                } else if (UsbManager.ACTION_USB_DEVICE_DETACHED == action) {
-                    Log.d("USB", " action ACTION_USB_DEVICE_DETACHED")
-                    sendDisconnectEvent()
-                }
-                else if (ACTION_USB_PERMISSION == action) {
-                    Log.d("USB", " action ACTION_USB_PERMISSION")
-                    synchronized(this) {
-                        val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
-                        val permissionGranted =
-                            intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
-                        if (permissionGranted) {
-                            if (device != null) {
-                                Log.d("USB", " action ACTION_USB_PERMISSION Granted")
-                                mUsbManager.openDevice(device)
-                                fd = device.deviceId
-                                Log.d("USB", " device fd :$fd")
-                                Log.d("USB", " device init :${HelloJni().init(fd)}")
-                                sendConnectEvent()
-                            } else {
-
-                            }
-                        } else {
-                            Log.d(
-                                "USB",
-                                "permission denied for device $device permissionGranted : $permissionGranted"
-                            )
-                            sendPermissionDeniedEvent()
-                        }
-                    }
-                }
-            }
-        }
 
         val filter = IntentFilter()
         filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
         filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
         filter.addAction(ACTION_USB_PERMISSION)
+        mUsbReceiver = UsbProbeReceiver()
         mContext.registerReceiver(mUsbReceiver, filter)
     }
+
 
     fun sendConnectEvent(){
         val connectIntent =
@@ -151,5 +111,53 @@ class LocalUSBManager(val mContext: Context) {
     fun unregisterReceiver() {
         Log.d("USB", "unregisterReceiver() called")
         mContext.unregisterReceiver(mUsbReceiver)
+    }
+
+    inner class UsbProbeReceiver : BroadcastReceiver(){
+        override fun onReceive(context: Context, intent: Intent) {
+            val action = intent.action
+            if (UsbManager.ACTION_USB_DEVICE_ATTACHED == action) {
+                Log.d("USB", " action ACTION_USB_DEVICE_ATTACHED")
+                val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
+                if (mUsbManager.hasPermission(device)) {
+                    fd = device!!.deviceId
+                    Log.d("USB1", " device fd :$fd")
+                    Log.d("USB1", " device init :${HelloJni().init(fd)}")
+
+                } else {
+                    //mUsbManager.requestPermission(device, mPermissionIntent)
+                }
+            } else if (UsbManager.ACTION_USB_DEVICE_DETACHED == action) {
+                Log.d("USB", " action ACTION_USB_DEVICE_DETACHED")
+                sendDisconnectEvent()
+            }
+            else if (ACTION_USB_PERMISSION == action) {
+                Log.d("USB", " action ACTION_USB_PERMISSION")
+                synchronized(this) {
+                    val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
+                    val permissionGranted =
+                        intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
+                    if (permissionGranted) {
+                        if (device != null) {
+                            Log.d("USB", " action ACTION_USB_PERMISSION Granted")
+                            mUsbManager.openDevice(device)
+                            fd = device.deviceId
+                            Log.d("USB", " device fd :$fd")
+                            Log.d("USB", " device init :${HelloJni().init(fd)}")
+                            sendConnectEvent()
+                        } else {
+
+                        }
+                    } else {
+                        Log.d(
+                            "USB",
+                            "permission denied for device $device permissionGranted : $permissionGranted"
+                        )
+                        sendPermissionDeniedEvent()
+                    }
+                }
+            }
+        }
+
     }
 }
